@@ -1,7 +1,15 @@
 # SingleMoleculeRotationAnalysis
-Python anlaysis script to analysis single molecule rotational dynamics from either linear dichroism or single channel fluorescence intensity fluctuation measurements.
+This repository contains Python scripts used to analysis single molecule rotational dynamics from either linear dichroism or single channel fluorescence intensity fluctuation measurements.
 
 # Getting Started
+
+## Dependencies
+-NumPy
+-Matplotlib
+-scikit-image
+-scikit-learn
+-statsmodels
+-SciPy
 
 # Basic Usage
 
