@@ -4,12 +4,12 @@ This repository contains Python scripts used to analysis single molecule rotatio
 # Getting Started
 
 ## Dependencies
--NumPy
--Matplotlib
--scikit-image
--scikit-learn
--statsmodels
--SciPy
+- NumPy
+- Matplotlib
+- scikit-image
+- scikit-learn
+- statsmodels
+- SciPy
 
 # Basic Usage
 
