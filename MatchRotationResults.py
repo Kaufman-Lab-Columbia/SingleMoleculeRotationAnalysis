@@ -1,15 +1,46 @@
 # -*- coding: utf-8 -*-
 """
+This code takes two results file from "RotationalAnalysis_LoadTrajectories"
+and matches molecules which appear in both results files.
+
+This is useful for 1:1 molecule matching when comparing two-channel linear-dichroism
+analysis with single-channel intensity analyis.
+
+This is also useful for 1:1 matching molecules that are reported out for translational
+analysis with those from rotational analysis though the prompts are specific to LD
+and intensity. You can substitute in a translational result file from
+"TranslationalAnalysis_HierarchicalClustering.py" instead of the first results
+file you are prompted for. 
+
 @author: Alec Meacham
+"""
+
+""" 
+
+Imports 
+
 """
 
 import numpy as np
 
-"""Define all necessary methods"""
+"""
+
+Define Methods
+
+"""
 
 def create_saveto_filepath(filepath, new_end):
 
-    """Create a new filepath for saving an image, .txt, etc."""
+    """
+    Create a new filepath for saving output files
+    
+    Args: 
+        filepath: (str) Filepath of original input as a base for appending
+        new_end: (str) String to append to the end of the original filepath
+    
+    Returns: 
+        save_to_filepath: (str) Filepath with newly appended ending
+    """
 
     if '.csv' in filepath:
         save_to_filepath = filepath.replace('.csv', new_end)
@@ -18,7 +49,17 @@ def create_saveto_filepath(filepath, new_end):
 
 def log_input(log_path, print_statement):
 
-    "Print instruction, gather user input and write program output into a log.txt file"
+    """ 
+    Print instruction, gather user input and write program output into a 
+    log.txt file. 
+    
+    Args: 
+        log_path: (str) Filepath where the log.txt file is located
+        print_statement: (str) Prompt displayed to the user
+        
+    Returns:
+        input_val: (str) User input value
+    """
 
     input_val = input(print_statement)
 
@@ -30,7 +71,31 @@ def log_input(log_path, print_statement):
 
 def inputs():
 
-    """Prompt user to input filepath, TBF and movie type"""
+    """
+    Prompt user to input filepaths and how the trajectories were originally
+    generated. 
+    
+    Args: 
+        None
+        
+    Returns:
+        traj_filepath: (str) Filepath of all filtered trajectories. This is
+            output from "TranslationalAnalysis_HierarchicalClustering.py"
+        LD_filepath: (str) Filepath of the LD filtered results. 
+        Int_filepath: (str) Filepath of the Intensity filtered results. 
+        folder: (str) Folder in which all files will be saved. 
+        trajectories: (ndarray (num_frames, num_feats*2)) Array of all
+            molecule's filtered trajectories. 
+        LD_res: (ndarray (num_LDresults, num_vals)) Array of all results
+            output from LD rotational analysis. 
+        Int_res: (ndarray (num_Intresults, num_vals)) Array of all results
+            output from Intensity rotational analysis.
+        coord_type: (int) Indicates how the trajectories were originally
+            generated: 
+                (0) Simulated
+                (1) Particle Tracker
+                (2) THUNDERSTORM
+    """
 
     traj_filepath = input("Input filepath of Filtered Trajectories:\n")
     filepath_tuple = traj_filepath.rpartition('\\')
@@ -55,7 +120,29 @@ def inputs():
 
 def processTraj(trajectories, coord_type):
     
-    """ Compute Average Positions, Number of Tracked Positions and Trajectory Length (last - first) """
+    """ 
+    DEPRECATED: This is no longer needed as the computations are done for each
+        molecule in the analysis code instead. 
+    
+    Compute Average Positions, Number of Tracked Positions and Trajectory Length (last - first)
+    
+    Args: 
+        trajectories: (ndarray (num_frames, num_feats*2)) Array of all
+            molecule's filtered trajectories. 
+        coord_type: (int) Indicates how the trajectories were originally
+            generated: 
+                (0) Simulated
+                (1) Particle Tracker
+                (2) THUNDERSTORM
+                
+    Returns: 
+        avgPos: (ndarray (num_feats,)) List of average xy-coordinate positions
+            for each molecule analyzed.
+        numTracked: (ndarray (num_feats,)) List of the number of frames tracked
+            for each molecule analyzed. 
+        trajLen: (ndarray (num_feats,)) List of trajectory lengths for each
+            molecule analyzed (last_frame - first_frame)
+    """
     
     # Compute Average Positions
     
@@ -112,7 +199,20 @@ def processTraj(trajectories, coord_type):
 
 def match_results(folder, first_results, second_results):
     
-    """ Match the coordinates of found Features in the two loaded results files """
+    """ 
+    Match the coordinates of found Features in the two loaded results files 
+    
+    Args: 
+        folder: (str) Folder in which all files will be saved. 
+        first_results: (ndarray (num_results1, num_vals1)) Results file for 
+            the first analysis output. 
+        second_results: (ndarray (num_results2, num_vals2)) Results file for
+            the second analysis output. 
+            
+    Returns: 
+        matched_results: (ndarray (num_results_matched, num_vals1+numvals2-3))
+            Array of all 1:1 feature matched results. 
+    """
     
     x_dim = first_results.shape[1]-3 + second_results.shape[1]+1
     y_dim = second_results.shape[0]
@@ -140,7 +240,25 @@ def match_results(folder, first_results, second_results):
 
 def clean_output(matched_results, avgPos, numTracked, trajLen):
     
-    """ Clean and Organize Output """
+    """ 
+    Deprecated: Analysis outputs are already cleaned and organized properly
+        and we no longer need this method to add the trajectory info either. 
+    
+    Clean and Organize Output 
+    
+    Args: 
+        matched_results: (ndarray (num_results_matched, num_vals1+numvals2-3))
+            Array of all 1:1 feature matched results. 
+        avgPos: (ndarray (num_feats,)) List of average xy-coordinate positions
+            for each molecule analyzed.
+        numTracked: (ndarray (num_feats,)) List of the number of frames tracked
+            for each molecule analyzed. 
+        trajLen: (ndarray (num_feats,)) List of trajectory lengths for each
+            molecule analyzed (last_frame - first_frame)
+        
+    Returns: 
+        None
+    """
     
     numberResults = matched_results.shape[0]
     goodIndices = np.zeros(numberResults)
@@ -176,7 +294,11 @@ def clean_output(matched_results, avgPos, numTracked, trajLen):
     
     return
 
-"""Run Analysis"""
+"""
+
+Run Analysis
+
+"""
 
 traj_filepath, LD_filepath, Int_filepath, folder, trajectories, LD_res, Int_res, coord_type = inputs()
 # avgPos, numTracked, trajLen = processTraj(trajectories, coord_type)

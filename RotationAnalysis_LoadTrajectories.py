@@ -1,9 +1,35 @@
 # -*- coding: utf-8 -*-
 """
-Combining both LD and Intensity derived Rotational Analysis from 
-Coordinates either from Translational Tracking or Simulated Trajectories
+This code includes an analysis pipeline for extracting rotational correlation 
+timescales from both single molecule fluorescence measurments from either 
+LD or Intensity. 
 
-@author: Glassy
+This code takes the following as inputs: 
+
+    - A .tif (or .bin) movie file
+    
+    - A .csv of trajectories from ImageJ which have been linked and filtered using
+      the 'TranslationalAnalysis_HierarchicalClustering.py' script
+  
+    - The time-between-frames of the movie being analyzed
+
+    - The movie type (1) 1ch for Intensity or (2) 2ch for LD
+
+    - How the coordinates were generated (0) Simulated, (1) Particle Tracker or
+      (2) THUNDERSTORM
+          - This is to handle indexing differences
+          
+    - The pixel size if the coordinates were generated with THUNDERSTORM
+    
+    - Some parameters for KWW fitting (typical values are suggested)
+
+@author: Alec Meacham
+"""
+
+""" 
+
+Imports 
+
 """
 
 import numpy as np
@@ -16,11 +42,25 @@ import sys
 from scipy import optimize, special
 from sklearn.metrics import r2_score
 
-""" Define Methods """
+""" 
+
+Define Methods 
+
+"""
 
 def log_input(log_path, print_statement):
 
-    """ Print instruction, gather user input and write program output into a log.txt file """
+    """ 
+    Print instruction, gather user input and write program output into a 
+    log.txt file. 
+    
+    Args: 
+        log_path: (str) Filepath where the log.txt file is located
+        print_statement: (str) Prompt displayed to the user
+        
+    Returns:
+        input_val: (str) User input value
+    """
 
     input_val = input(print_statement)
 
@@ -32,7 +72,16 @@ def log_input(log_path, print_statement):
 
 def create_saveto_filepath(filepath, new_end):
 
-    """Create a new filepath for saving an image, .txt, etc."""
+    """
+    Create a new filepath for saving output files
+    
+    Args: 
+        filepath: (str) Filepath of original input as a base for appending
+        new_end: (str) String to append to the end of the original filepath
+    
+    Returns: 
+        save_to_filepath: (str) Filepath with newly appended ending
+    """
 
     if '.tif' in filepath:
         save_to_filepath = filepath.replace('.tif', new_end)
@@ -44,7 +93,28 @@ def create_saveto_filepath(filepath, new_end):
 
 def inputs():
     
-    """ Prompt user to input trajectory filepath, movie filepath and associated parameters """
+    """ 
+    Prompt user to input trajectory filepath, movie filepath and associated parameters 
+    
+    Args: 
+        None
+    
+    Returns: 
+        movie_filepath: (str) Filepath of .tif or .bin movie
+        trajectory_filepath: (str) Filepath of .csv trajectories file
+        folder: (str) Folder where all analyis outputs are being written
+        tbf: (float) Time-Between-Frames of movie
+        movie_type: (int) Type of Movie: 
+            (1) Single-Channel for Intensity 
+            (2) Two-Channel for Linear Dichroism
+        coord_type: (int) How coordinates were originally generated:
+            (0) Simulated Coordinates
+            (1) Particle Tracker
+            (2) THUNDERSTORM        
+        log_path: (str) Path of log.txt file
+        pixel_size: (float) Pixel size of movie if trajectories were originally
+        generated using THUNDERSTORM. Otherwise 0. 
+    """
     
     movie_filepath = input('Input the movie filepath: \n')
     folder = movie_filepath.rpartition('\\')[0]
@@ -74,7 +144,18 @@ def inputs():
 
 def load_movie(filepath):
 
-    """Load movie file"""
+    """
+    Load movie file
+    
+    Args: 
+        filepath: (str)
+        
+    Returns
+        img: (ndarray (num_frames, y_dim, x_dim)): Movie Array
+        img.shape[0]: (int) num_frames, Number of frames in movie
+        img.shape[1]: (int) y_dim, y-dimension of movie
+        img.shape[2]: (int) x_dim, x-dimension of movie
+    """
 
     # Case 1: Filetype .tif or .ome.tif
     if '.tif' in filepath:
@@ -104,7 +185,23 @@ def load_movie(filepath):
 
 def find_centers(trajectory_filepath, num_frames, pixel_size):
     
-    """ Generate Center Pixel Coordinates by taking Integer Rounding of ImageJ XY Coords """
+    """ 
+    Generate Center Pixel Coordinates by taking Integer Rounding of 
+    ImageJ XY Coords 
+    
+    Args: 
+        trajectory_filepath: (str) Filepath of particle trajectories
+        num_frames: (int) Number of frames in movie
+        pixel_size: (float) Pixel size of movie, only applicable if the
+            trajectories were generated with THUNDERSTORM
+        
+    Returns: 
+        centers: (ndarray (num_frames, num_features*2)) Array of all moelcule
+            feature centers (y, x) rounded to the nearest integer pixel
+        num_features: (int) Number of molecules/features 
+        xy_trajarr: (ndarray(num_frames, num_features*2)) Array of all molecule
+            coordinates in time, i.e., trajectories
+    """
     if coord_type == 2:
         xy_trajarr = np.loadtxt(trajectory_filepath, delimiter=',', skiprows=1)[:, :-1] / pixel_size
 
@@ -140,7 +237,22 @@ def find_centers(trajectory_filepath, num_frames, pixel_size):
 
 def find_avgPos(xy_traj, coord_type, num_feats):
     
-    """ Compute the Average X and Y positions of all trajectories for output in Results file (and to be used for matching) """
+    """ 
+    Compute the Average X and Y positions of all trajectories for output 
+    in Results file (and to be used for matching) 
+    
+    Args: 
+        xy_traj: (ndarray (num_frames, num_feat*2)) Trajectory array
+        coord_type: (int) How coordinates were originally generated
+            (0) Simulated
+            (1) Particle Tracker
+            (2) THUNDERSTORM
+        num_feats: (int) Number of molecules/features in the movie
+            
+    Returns:
+        avg_Pos: (ndarray (num_feats, 2)) Array of average xy-positions for 
+            each molecule tracked
+    """
     
     avg_Pos = np.empty((num_feats, 2))
     avg_Pos[:] = np.nan
@@ -163,7 +275,20 @@ def find_avgPos(xy_traj, coord_type, num_feats):
 
 def compute_TrajInfo(xy_traj, num_feats):
     
-    """ Compute the Number of Tracked Positions, Trajectory Length (final - initial frame) and Track% """
+    """ 
+    Compute information about each molecule trajectory
+    
+    Args: 
+        xy_traj: (ndarray (num_frames, num_feats*2)) Trajectory Array
+        num_feats: (int) Number of molecule/features in movie
+            
+    Returns: 
+        trajInfo: (ndarray (num_feats, 3) Information about trajectory 
+            including: 
+                - Total Number of Positions Tracked
+                - Length of Tracked Trajectory (last frame - first frame)
+                - Percentage of frames tracked
+    """
     
     trajInfo = np.empty((num_feats, 3))
     trajInfo[:] = np.nan
@@ -191,7 +316,32 @@ def compute_TrajInfo(xy_traj, num_feats):
 
 def generate_intensity_trajectories(movie_file, centers, num_frames, num_feats, x_dim, y_dim, coord_type, LCRC):
     
-    """ Generate Intensity Arrays from a 3x3 Pixel Window around Found Feature Centers at each Frame """
+    """ 
+    Generate Intensity Arrays from a 3x3 Pixel Window around Found Feature 
+    Centers at each Frame 
+    
+    Args: 
+        movie_file: (ndarray (num_frames, x-dim, y-dim)) Array of all pixel
+            intensities in the movie for all frames
+        centers: (ndarray (num_frames, num_feats*2)) Array of the pixel centers
+            of each molecule at every frame
+        num_frames: (int) Number of frames in the movie
+        num_feats: (int) Number of molecules/features in the movie
+        x_dim: (int) x-dimension of movie
+        y_dim: (int) y-dimension of movie
+        coord_type: (int) How the trajectories were originally generated
+            (0) Simulated
+            (1) Particle Tracker
+            (2) THUNDERSTORM
+        LCRC: (int) Indicates whether the movie examined is: 
+            (1) The left-channel of a two-channel movie
+            (2) The right-channel of a two-channel movie
+            (5) The only channel of a single-channel movie
+    
+    Returns: 
+        int_traj: (ndarray (num_frames, num_feats)) Array of integrated 
+            intensities for all features at all frames in the movie
+    """
     
     int_traj = np.empty((num_frames, num_feats))
     int_traj[:] = np.nan
@@ -231,6 +381,22 @@ def generate_intensity_trajectories(movie_file, centers, num_frames, num_feats, 
 
 def compute_LD(LC_inttraj, RC_inttraj, num_frames, num_feats):
     
+    """
+    Compute the Reduced Linear Dichroism for a two-channel movie
+    
+    Args: 
+        LC_inttraj: (ndarray (num_frames, num_feats)) Array with integrated
+            intensities of the left-channel from a two-channel movie
+        RC_inttraj: (ndarray(num_frames, num_feats)) Array with integrated
+            intensities of the right-channel from a two-channel movie
+        num_frames: (int) Number of frames in movie
+        num_feats: (int) Number of molecules/features in movie
+        
+    Returns: 
+        LD_arr: (ndarray (num_frames, num_feats)) Array with reduced linear
+            dichroism values for each molecule in the movie at every frame
+    """
+    
     LD_arr = np.empty((num_frames, num_feats))
     LD_arr[:] = np.nan
     
@@ -258,7 +424,23 @@ def compute_LD(LC_inttraj, RC_inttraj, num_frames, num_feats):
 
 def compute_ACF(data, num_frames, num_feats):
     
-    """ Compute ACF Values for All Available Offset Datapoints """
+    """ 
+    Compute Autocorrelation Function (ACF) Values for All Available 
+    Offset Datapoints 
+    
+    Args: 
+        data: (ndarray (num_frames, num_feats)): Data to autocorrelate. Either
+            integrated intensities in the case of single-channel movies or 
+            reduced linear dichroism in the case of two-channel movies
+        num_frames: (int) Number of frames in movie
+        num_feats: (int) Number of molecules/features in movie
+        
+    Returns: 
+        ACF_arr: (ndarray (num_frames-1, num_feats)) Array of ACF values of
+            all molecules for all possible timelags
+        ACFunder_arr (ndarray (num_frames-1, num_feats)) ARray of ACF
+            uncertainties of all molecules for all possible timelags
+    """
     
     ACF_arr = np.empty((num_frames-1, num_feats))
     ACFuncert_arr = np.empty((num_frames-1, num_feats))
@@ -290,7 +472,21 @@ def compute_ACF(data, num_frames, num_feats):
 
 def compute_ACFpts(data_arr, num_frames, num_feats):
     
-    """ Compute the number of data points (i.e.; the number of non-NaN timelags) contributing to each ACF data point """
+    """ 
+    Compute the number of data points (i.e.; the number of non-NaN timelags) 
+    contributing to each ACF data point and save to file. 
+    
+    Args: 
+        data_arr: (ndarray, (num_frames, num_feats)) Data used to compute the
+            ACF values. Either integrated intensities in the case of 
+            single-channel movies or reduced linear dichroism in the case of 
+            two-channel movies
+        num_frames: (int) Number of frames in movie
+        num_feats: (int) Number of molecules/features in movie
+        
+    Returns: 
+        None
+    """
     
     ACFcts_arr = np.empty((num_frames, num_feats))
     ACFcts_arr[:] = np.nan
@@ -315,13 +511,52 @@ def compute_ACFpts(data_arr, num_frames, num_feats):
 
 def KWW(x, A, tauf, beta):
 
-    """Define the KWW equation to fit ACFs to"""
-
+    """
+    Define the KWW equation to fit ACFs
+    
+    Args: 
+        x: (float) Time (s) 
+        A: (float) Prefactor for KWW 
+        tauf: (float) Taufit, rotational correlation time
+        beta: (float) Beta, stretching exponent
+        
+    Returns:
+        KWW Equation
+    """
     return A * np.exp(-np.power((x/tauf), beta))
 
 def kww_fit(ACF_arr, ACFuncert_arr, num_frames, num_feats):
+
+    """
+    Fit ACF data to KWW equation to yield A, taufit and beta
     
-    """Fit ACF data to KWW equation to yield A, taufit and beta"""
+    Args: 
+        ACF_arr: (ndarray (num_frames, num_feats)) Array of all ACF values
+            for each molecule at all frames
+        ACFuncert_arr: (ndarray (num_frames, num_feats)) Array of all ACF
+            uncertainties for each molecule at all frames
+        num_frames: (int) Number of frames in movie
+        num_feats: (int) Number of molecules/features in movie
+        
+    Returns: 
+        results: (ndarray (num_good_fits, 3)) Array of A, taufit and beta fit parameters
+            from fitting the KWW equation. Only molecules whose fit meets the
+            following user indicated criteria are included:
+                    (1) min_points: (int) Minimum number of ACF points that
+                        must exist within the specified range for the fit to
+                        be considered
+                    (2) ACF_init_check: (float) The minimum ACF value for the 
+                        first time-lag ACF value. 
+                    (3) ACF_fin_check: (float) The minimum ACF value for the 
+                        last time-lag ACF value considered i.e.; when do we
+                        stop fitting the long time-lag tail.
+                    (4) r2_cutoff: (float) The r^2 value cutoff of our what
+                        is considered acceptable in our fits. 
+        r2_arr: (ndarray (num_good_fits,)) The r^2 fits of the accepted molecules.
+        good_fits: (ndarray (num_good_fits,)) The indices of which molecules
+            meet the specified fitting criteria and are thus considered
+            "good fits". 
+    """
     
     # Initialize variables
     
@@ -455,9 +690,8 @@ def kww_fit(ACF_arr, ACFuncert_arr, num_frames, num_feats):
         fig, ax = plt.subplots(1, 1)
         
         plt.scatter(x_data[0:good_idxcheck[i]], ACF_arr[0:good_idxcheck[i], index], label='Data')
-        plt.plot(x_data[0:good_idxcheck[i]],
-                 KWW(x_data[0:good_idxcheck[i]], results[i, 0], results[i, 1], results[i, 2]),
-                 label='Fitted function')
+        plt.plot(x_data[0:good_idxcheck[i]], KWW(x_data[0:good_idxcheck[i]], 
+                 results[i, 0], results[i, 1], results[i, 2]), label='Fitted function')
         
         plt.xlabel('Time (s)')
         plt.ylabel('ACF')
@@ -484,20 +718,39 @@ def kww_fit(ACF_arr, ACFuncert_arr, num_frames, num_feats):
     
     np.savetxt(kwwfit_filepath, results, delimiter=',')
     np.savetxt(r2_filepath, r2_arr, delimiter=',')
-        
+    
     return results, r2_arr, good_fits
 
 def tauc_equation(tauf, beta):
 
-    """Equation to calculate tauc from taufit and beta via the gamma function"""
-
+    """
+    Equation to calculate tauc from taufit and beta via the gamma function
+    
+    Args: 
+        tauf: (float) Taufit value of individual molecule
+        beta: (float) Beta value of individual molecule
+    
+    Returns:
+        tauc: (float) Tauc, average rotational timescale, of individual molecule
+    """
+    
     tauc = (tauf / beta) * special.gamma(1 / beta)
-
     return tauc
 
 def calc_tauc(results_arr):
 
-    """Calculate tauc for all found features"""
+    """
+    Calculate tauc for all molecules with good KWW fits
+    
+    Args:
+        results_arr: (ndarray (num_good_feats, 3)) Array of KWW fit parameters
+            A, taufit and beta for each molecule with a good fit. 
+            
+    Returns: 
+        results_arr: (ndarray (num_good_feats, 4)) Array of KWW fit parameters
+            A, taufit and beta as well as the computed tauc value for each
+            molecule with a good fit. 
+    """
 
     empty_col = np.zeros((1, 1))
     results_arr = np.insert(results_arr, 1, empty_col, axis=1)
@@ -513,7 +766,35 @@ def calc_tauc(results_arr):
 
 def clean_output(prelim_res, r2_arr, avg_Pos, trajInfo, good_fits, num_frames):
     
-    """ Clean up output array with coordinate centers, r2 values, log values and pts/tauf """
+    """
+    Adds coordinate centers, r2 values, log values and pts/tauf to the results
+    array and removes any results with < 2 pts/taufit or with fitting
+    parameters which default to the limits of our acceptable range
+    (A=2 or beta=2)
+    
+    Args: 
+        prelim_res: (ndarray (num_good_fits, 4)) Array of KWW fit parameters
+            and associated tauc for all molecules. 
+        r2_arr: (ndarray (num_good_fits,)) Array of r^2 values for each KWW
+            fit. 
+        avg_Pos: (ndarray (num_fits, 2)) Average xy-positions of each molecule
+            in the results file. 
+        trajInfo: (ndarray(num_fits, 3)) Information regarding the trajectories
+            of each molecule including:
+                - Total Number of Positions Tracked
+                - Length of Tracked Trajectory (last frame - first frame)
+                - Percentage of frames tracked
+        good_fits: (ndarray(num_good_fits,)) Array of indices for molecules
+            whose KWW fits were deemed sufficient. 
+        num_frames: (int) Number of frames in movie
+        
+    Returns: 
+        filtered_output: (ndarray (filtered_fits, 13)) Array of filtered 
+            results including average molecule xy-coordinates, all KWW fitting 
+            parameters, tauc, logs of tau and trajectory information
+        filtered_goodIndices (ndarray(filtered_fits,)) List of the indices of
+            all molecules which pass this filtering stage. 
+    """
     
     output = np.zeros((good_fits.shape[0], 13))
     good_trajectories = np.zeros((num_frames, good_fits.shape[0]*2))
@@ -600,7 +881,20 @@ def clean_output(prelim_res, r2_arr, avg_Pos, trajInfo, good_fits, num_frames):
 
 def QE_calc(ACF_arr, indicesArr):
     
-    """Calculate QE ACF Values and Fit to KWW to Extract QE Rotational Information"""
+    """
+    Calculate Quasi-Ensemble ACF Values and Fit to KWW to Extract Quasi-Ensemble 
+    Rotational Information
+    
+    Args: 
+        ACF_arr: (ndarray (num_frames, num_Feats)) Array of all molecule
+            ACFs
+        indicesArr: (ndarray (filtered_fits,)) List of all molecule indices
+            which pass the indicated fitting requirements and the filtering
+            stage. 
+            
+    Returns: 
+        None
+    """
     
     filtered_ACF = np.empty((ACF_arr.shape[0], indicesArr.shape[0]))
     for i in range(indicesArr.shape[0]):
@@ -670,7 +964,11 @@ def QE_calc(ACF_arr, indicesArr):
     
     return
 
-""" Run Analysis """
+""" 
+
+Run Analysis 
+
+"""
 
 # INPUTS
 movie_filepath, trajectory_filepath, folder, tbf, movie_type, coord_type, log_path, pixel_size = inputs()
