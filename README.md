@@ -21,7 +21,7 @@ These two bookmatched channels should also be summed into an effective single-ch
 
 Analysis of rotational dynamics using *RotationalAnalysis_LoadTrajectories.py* requires a *.csv* file containing the xy-coordinates of each molecules for all frames of the movie with NaNs indicating frames in which the molecule could not be localized. These can be generated either from simulations or from tracking experimental data using the ImageJ ParticleTracker plugin. The ImageJ THUNDERSTORM plugin may also be used. 
 
-In the case of trajectories tracked with ParticleTracker or THUNDERSTORM the user must first link these trajectories using the *TranslationalAnalysis_HierarchicalClustering.py* script provided in this repository. This script will output a file with the ending *_filtered_trajectories.csv* which will be used as an input for the *RotationalAnalysis_LoadTrajectories.py* script. 
+In the case of trajectories tracked with ParticleTracker or THUNDERSTORM the user must first link these trajectories using the *TranslationalAnalysis_HierarchicalClustering.py* script provided in this repository. This script will output a file with the ending *_filtered_trajectories.csv* which will be used as an input for the *RotationalAnalysis_LoadTrajectories.py* script. Additional information about this script can be found in the *SingleMoleculeTranslationAnalysis* repository. 
 
 The *RotationalAnalysis_LoadTrajectories.py* script takes the *.tif* (or *.bin*) movie file as well as the *.csv* file containing the xy-trajectories of each molecule. The user will also be prompted with several other parameters during the analysis based on the conditions of the experiment and the checks on KWW functional fitting to the autocorrelations computed. 
 
