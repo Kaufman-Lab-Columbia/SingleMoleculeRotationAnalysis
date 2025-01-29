@@ -262,7 +262,7 @@ def hierarchical_clustering(df_raw, foldername):
     print("\nNumber of Clusters: ", num_clusters)
     print("Linkage Distance: ", linkage_distance, "\n")
     
-    hc = AgglomerativeClustering(n_clusters=num_clusters, affinity='euclidean', linkage='complete')
+    hc = AgglomerativeClustering(n_clusters=num_clusters, metric='euclidean', linkage='complete')
     hc_labels = hc.fit_predict(coordinates)
     coordinates['hc_label'] = hc_labels
     
